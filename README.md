@@ -24,10 +24,26 @@ Example: totp = OneTime.new('secret-token', length: 10, step: 10, encryption: 'S
 **Methods:**
 
  - generate(time = Time.now, length: self.length, step: self.step, encryption: self.encryption, reset: false)
-    *Generates a password with the given options and stores it in self.password*
+    *Generates a password with the given options and stores it in self.password. If the reset flag is set, it resets the generation time also.*
 
  - verify('password to verify', time: Time.now, length: self.length, step: self.step, encryption: self.encryption)
     *Verifies a given password against a newly generated (with options)*
 
  - call_service(url, user, payload, content_type: 'application/json', accept: '*/*')
     *Sends a request to the specified url, user and payload. If a password wasn't generated previously, it generates one using current timestamp and combines it with the user ("user:password"), encodes the result in base64, and stores it in the Authentication field in the header.*
+    
+**Getters**
+
+ - password: returns generated password
+ - secret: returns given secret
+ - generation_time: returns generation timestamp
+ - step: returns set step time
+ - encryption: returns set encryption
+ - length: returns set password length
+ 
+**Setters**
+
+ - step: sets step time
+ - encryption: sets encryption type ('sha1',sha256','sha512')
+ - length: sets password length
+ 
