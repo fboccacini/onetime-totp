@@ -6,75 +6,68 @@ describe OneTime do
      methods = ['SHA1','SHA256','SHA512']
      tests = Array.new
      index = 0
-     o = [('a'..'z'), ('A'..'Z'), (0..9)].map(&:to_a).flatten
+     o = [(' '..'~')].map(&:to_a).flatten
 
      it "should create a one time password with random secret, length, encryption and step without errors and verify it at different times" do
-       3.times do
+       100.times do
          methods.each do |encryption|
-          # sleep 0.5
+
+          # Preapare random data
           test = Hash.new
 
           test[:number] = index + 1
           test[:secret] = (0...rand(1..32)).map { o[rand(o.length)] }.join
           test[:length] = rand(4..10)
-          test[:step] = rand(4..10)
+          test[:step] = rand(4..180)
           test[:first_delay] = rand(0..(test[:step] - 1))
+
+          # Start a thread for each test
           test[:thread] = Thread.new do
 
             puts "Test #{test[:number]} started. (Wait time: #{test[:first_delay]}s)"
+
+            # Instantiate totp
             totp = OneTime.new(test[:secret], length: test[:length], step: test[:step], encryption: encryption)
             expect(totp.class).to eq OneTime
 
+            # Get password and time for validation and reference
             pass = totp.password
             time = totp.generation_time
-            gen = totp.gen_step
 
-            sleep test[:first_delay]
+            # Sleep random time
+            sleep rand(0..test[:step] * 2)
 
+            # Verify
+            time_diff = (Time.now.to_f - time.to_f)
             test[:verify] = totp.verify(pass)
-            if test[:verify]
-              puts "Test #{test[:number]} (#{encryption}) within step -> OK (#{totp.gen_step - gen} / #{gen} / #{totp.gen_step}) #{test[:step]}s / #{Time.now.to_i - time.to_i}s"
-            else
-              puts "Test #{test[:number]} (#{encryption}) within step -> time: #{time.strftime('%H:%M:%S')} / #{totp.generation_time.strftime('%H:%M:%S')} step: #{test[:step]} (#{Time.now.to_i - time.to_i}s) (#{totp.gen_step - gen} / #{gen} / #{totp.gen_step}) secret: #{test[:secret]} / #{totp.secret} length: #{test[:length]} enc: #{encryption} pass: #{pass} / #{totp.password} verify: #{test[:verify].to_s}"
-            end
-            expect(test[:verify]).to eq true
 
-            # it "should verify the password at step time and return true"
-              sleep (test[:step] - test[:first_delay])
-              test[:verify_limit] = totp.verify(pass)
-              unless test[:verify_limit]
-                puts "Test #{test[:number]} (#{encryption}) time limit -> OK (#{totp.gen_step - gen} / #{gen} / #{totp.gen_step}) #{test[:step]}s / #{Time.now.to_i - time.to_i}s"
-              else
-                puts "Test #{test[:number]} (#{encryption}) time limit -> time: #{time.strftime('%H:%M:%S')} / #{totp.generation_time.strftime('%H:%M:%S')} step: #{test[:step]} (#{Time.now.to_i - time.to_i}s) (#{totp.gen_step - gen} / #{gen} / #{totp.gen_step}) secret: #{test[:secret]} / #{totp.secret} length: #{test[:length]} enc: #{encryption} pass: #{pass} / #{totp.password} verify: #{test[:verify].to_s}"
-              end
-              expect(test[:verify_limit]).to eq false
-            #   verify = totp.verify(pass)
-            #   puts "Test #{i} (#{encryption}) time limit -> time: #{time.strftime('%H:%M:%S')} / #{totp.generation_time.strftime('%H:%M:%S')} step: #{step} (#{totp.diff} #{gen}/#{totp.gen_step}) (#{totp.generation_time - time}s) secret: #{secret} / #{totp.secret} length: #{length} enc: #{encryption} pass: #{pass} / #{totp.password} verify: #{verify.to_s}"
-            #   expect(verify).to eq true
-            # end
-            # it "should verify the password after step time and return false"
-              # sleep rand(1..60)
-              sleep test[:step] * 2
-              test[:verify_exceed] = totp.verify(pass)
-              unless test[:verify_exceed]
-                puts "Test #{test[:number]} (#{encryption}) time exceed -> OK (#{totp.gen_step - gen} / #{gen} / #{totp.gen_step}) #{test[:step]}s / #{Time.now.to_i - time.to_i}s"
-              else
-                puts "Test #{test[:number]} (#{encryption}) time exceed -> time: #{time.strftime('%H:%M:%S')} / #{totp.generation_time.strftime('%H:%M:%S')} step: #{test[:step]} (#{Time.now.to_i - time.to_i}s) (#{totp.gen_step - gen} / #{gen} / #{totp.gen_step}) secret: #{test[:secret]} / #{totp.secret} length: #{test[:length]} enc: #{encryption} pass: #{pass} / #{totp.password} verify: #{test[:verify].to_s}"
-              end
-              expect(test[:verify_exceed]).to eq false
-            #   expect(verify).to eq false
-            # end
-          end
+            if (test[:step] - time_diff).abs < 1
+              time_label = "Around time limit"
+            elsif time_diff < test[:step]
+                time_label = 'Within step'
+            else
+              time_label = 'Time exceeds'
+            end
+            test_num = tests.reject{ |t| t[:verify].nil? }.length
+            if test[:verify] == time_diff < test[:step]
+              puts "#{test_num.to_s.rjust(3)}/#{tests.length} Test #{test[:number].to_s.rjust(3)} #{encryption.rjust(7)} "\
+                    "#{time_label.rjust(17)} #{('%+.5f' % (time_diff - test[:step])).rjust(11)} -> "\
+                    "OK #{test[:verify] ? '(Granted)' : '(Denied)'.rjust(9)} pass: #{pass.rjust(10)} / #{totp.password.ljust(10)} "\
+                    "elapsed/step: #{"#{'%.5f' % (Time.now.to_f - time.to_f)}s".rjust(10)}/#{test[:step].to_s.rjust(3)}s "\
+                    "length: #{test[:length].to_s.rjust(2)} secret: #{test[:secret]}"
+            else
+              puts "Test #{test[:number]} (#{encryption}) #{time_label} (#{'%+.5f' % (time_diff - test[:step])}) -> Error (#{test[:verify] ? 'Granted' : 'Denied'}) time: #{time.strftime('%H:%M:%S')} / #{totp.generation_time.strftime('%H:%M:%S')} elapsed / step: #{'%.5f' % (Time.now.to_f - time.to_f)}s / #{test[:step]}s secret: #{test[:secret]} / #{totp.secret} length: #{test[:length]} pass: #{pass} / #{totp.password}}"
+            end
+            expect((test[:verify] == time_diff < test[:step])).to eq true
+
+          end   # thread
 
           tests << test
           index += 1
-        end
-
-      end
+        end   #methods
+      end   #times
       tests.each{ |t| t[:thread].join }
-      # tests.each{ |t| expect(t[:verify]).to eq true}
-      # tests.each{ |t| expect(t[:verify_limit]).to eq false}
-      # tests.each{ |t| expect(t[:verify_exceed]).to eq false}
-    end
-  end
-end
+    end   # it
+
+  end   #context
+end   #describe

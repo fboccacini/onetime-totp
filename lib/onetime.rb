@@ -14,7 +14,7 @@ require 'net/https'
 class OneTime
 
   attr_accessor :step, :encryption, :length
-  attr_reader :password, :secret, :generation_time, :gen_step
+  attr_reader :password, :secret, :generation_time
 
   def initialize(secret, length: 6, step: 30, encryption: 'SHA512')
 
@@ -36,15 +36,16 @@ class OneTime
 
       # If reset is true nil the generation time
       @generation_time = time.clone if reset == true || @generation_time.nil?
+
       # Binary key from time / step
-      rounded_step = (time.to_i - @generation_time.to_i) / step
+      rounded_step = (time.to_f - @generation_time.to_f).floor / step
       key = ['%0.16x' % (rounded_step).to_s(16).hex].pack('H*')
-      @gen_step = rounded_step
+
       # Convert secret's non base32 char to base32 and back to string
       data = Base32.decode(Base32.encode(self.secret))
 
       # Get initial HMAC hash
-      hash = OpenSSL::HMAC.digest(encryption, data, key)
+      hash = OpenSSL::HMAC.digest(encryption.downcase, data, key)
 
       # Dynamic truncation:
       # Get the last for bit of the last byte of the hash
